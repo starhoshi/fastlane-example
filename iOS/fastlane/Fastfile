@@ -51,7 +51,7 @@ platform :ios do
     end
 
     # Update build number
-    increment_build_number(build_number: Time.now.to_i.to_s[0..7])
+    increment_build_number(build_number: "beta-#{Time.now.to_i.to_s[0..7]}")
 
     # Change application icon to beta version
     badge(dark: true)
