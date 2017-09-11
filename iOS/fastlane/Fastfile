@@ -187,7 +187,7 @@ platform :ios do
   desc "frameit"
   lane :screenshots do
     frameit(path: './fastlane/screenshots/', white: true)
-    Dir.glob('**/*.png') do |png|
+    Dir.glob('./fastlane/screenshots/**/*.png') do |png|
       if !png.include?('framed')
         File.delete(png)
       end
