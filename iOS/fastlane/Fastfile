@@ -183,6 +183,17 @@ platform :ios do
     )
   end
 
+  
+  desc "frameit"
+  lane :screenshots do
+    frameit(path: './fastlane/screenshots/', white: true)
+    Dir.glob('**/*.png') do |png|
+      if !png.include?('framed')
+        File.delete(png)
+      end
+    end
+  end
+
 
   error do |lane, exception|
     slack(
