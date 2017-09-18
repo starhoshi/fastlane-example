@@ -116,6 +116,9 @@ platform :ios do
 
     # Upload dSYM to crashslytics
     upload_symbols_to_crashlytics
+    
+    # Upload dSYM to iTunesConnect
+    refresh_dsyms
 
     # Get diff from the last tag
     sh("git tag -d v#{get_version_number} || echo")
