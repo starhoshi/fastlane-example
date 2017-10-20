@@ -57,7 +57,7 @@ platform :ios do
     badge(dark: true)
 
     # Compile
-    gym(configuration: "Debug")
+    gym(export_method: "development", configuration: "Debug")
 
     # Save ipa and dSYM
     if is_ci?
