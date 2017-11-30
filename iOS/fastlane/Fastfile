@@ -118,7 +118,7 @@ platform :ios do
     upload_symbols_to_crashlytics
     
     # Upload dSYM to iTunesConnect
-    refresh_dsyms
+    upload_latest_dsyms
 
     # Get diff from the last tag
     sh("git tag -d v#{get_version_number} || echo")
@@ -142,7 +142,12 @@ platform :ios do
       default_payloads: default_payloads
     )
   end
-
+  
+  lane :upload_latest_dsyms do
+    download_dsyms(version: "latest")
+    upload_symbols_to_crashlytics
+    clean_build_artifacts
+  end
 
   desc "Download dSYMs from iTunesConnect and upload to crashylitics"
   lane :refresh_dsyms do
