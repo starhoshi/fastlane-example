@@ -23,7 +23,10 @@ platform :ios do
       create_keychain(
         name: keychain[:name],
         password: keychain[:password],
-        timeout: 1800
+        default_keychain: true,
+        unlock: true,
+        timeout: 3600,
+        lock_when_sleeps: false
       )
     end
   end
