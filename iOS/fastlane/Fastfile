@@ -19,15 +19,20 @@ platform :ios do
 
     if is_ci?
       sh("rm /Users/distiller/Library/Keychains/#{keychain[:name]}-db || echo")
-
-      create_keychain(
-        name: keychain[:name],
-        password: keychain[:password],
-        default_keychain: true,
-        unlock: true,
-        timeout: 3600,
-        lock_when_sleeps: false
+      
+      setup_ci(
+        force: true,
+        provider: "travis",
       )
+
+   #   create_keychain(
+   #     name: keychain[:name],
+   #     password: keychain[:password],
+   #     default_keychain: true,
+   #     unlock: true,
+   #     timeout: 3600,
+   #     lock_when_sleeps: false
+   #   )
     end
   end
 
@@ -96,11 +101,11 @@ platform :ios do
   desc "Deploy a new version to the App Store"
   lane :release do
     # Download and install certificate
-    if is_ci?
-      match(type: "appstore", keychain_name: keychain[:name], keychain_password: keychain[:password])
-    else
+#    if is_ci?
+#      match(type: "appstore", keychain_name: keychain[:name], keychain_password: keychain[:password])
+#    else
       match(type: "appstore")
-    end
+#    end
 
     # Update build number
     increment_build_number(build_number: "#{Time.now.strftime("%Y%m%d%H%M")}")
