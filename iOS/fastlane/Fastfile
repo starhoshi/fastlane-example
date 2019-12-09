@@ -18,7 +18,7 @@ platform :ios do
     changelog = changelog_from_git_commits_hs
 
     if is_ci?
-      sh("rm /Users/distiller/Library/Keychains/#{keychain[:name]}-db || echo")
+   #   sh("rm /Users/distiller/Library/Keychains/#{keychain[:name]}-db || echo")
       
       setup_ci(
         force: true,
@@ -101,11 +101,11 @@ platform :ios do
   desc "Deploy a new version to the App Store"
   lane :release do
     # Download and install certificate
-#    if is_ci?
-#      match(type: "appstore", keychain_name: keychain[:name], keychain_password: keychain[:password])
-#    else
+    if is_ci?
+      match(type: "appstore", git_url: ENV["GITHUB_CERTIFICATES_REPO"])
+    else
       match(type: "appstore")
-#    end
+    end
 
     # Update build number
     increment_build_number(build_number: "#{Time.now.strftime("%Y%m%d%H%M")}")
