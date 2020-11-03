@@ -160,7 +160,7 @@ platform :ios do
   desc "Download dSYMs from iTunesConnect and upload to crashylitics"
   lane :refresh_dsyms do
     download_dsyms
-    upload_symbols_to_crashlytics(gsp_path: ENV['GOOGLE_SERVICE_INFO_PATH'])
+    upload_symbols_to_crashlytics(gsp_path: ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'])
     clean_build_artifacts
 
     slack(
