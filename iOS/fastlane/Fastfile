@@ -11,7 +11,6 @@ platform :ios do
   changelog = ""
   default_payloads = [:lane, :test_result, :git_branch, :git_author]
   keychain = {name: "name", password: "password"}
-  binary_path = "${BUILD_DIR%Build/*}\/SourcePackages\/checkouts\/firebase-ios-sdk\/Crashlytics\/upload-symbols"
 
   before_all do
     # ENV['DELIVER_ITMSTRANSPORTER_ADDITIONAL_UPLOAD_PARAMETERS'] = '-t DAV'
@@ -86,7 +85,7 @@ platform :ios do
 
     # Upload dSYM to crashslytics
     upload_symbols_to_crashlytics(
-      binary_path: "#{binary_path}"
+      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
     )
 
     # notify slack
@@ -127,7 +126,7 @@ platform :ios do
 
     # Upload dSYM to crashslytics
     upload_symbols_to_crashlytics(
-      binary_path: "#{binary_path}"
+      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
     )
     
     # Upload dSYM to iTunesConnect
@@ -159,7 +158,7 @@ platform :ios do
   lane :upload_latest_dsyms do
     download_dsyms(version: "latest")
     upload_symbols_to_crashlytics(
-      binary_path: "#{binary_path}"
+      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
     )
     clean_build_artifacts
   end
@@ -169,7 +168,7 @@ platform :ios do
     download_dsyms
     upload_symbols_to_crashlytics(
       gsp_path: ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'],
-      binary_path: "#{binary_path}"
+      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
     )
     clean_build_artifacts
 
