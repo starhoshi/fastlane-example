@@ -85,7 +85,7 @@ platform :ios do
 
     # Upload dSYM to crashslytics
     upload_symbols_to_crashlytics(
-      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
+      binary_path: './scripts/upload-symbols'
     )
 
     # notify slack
@@ -132,7 +132,7 @@ platform :ios do
 
     # Upload dSYM to crashslytics
     upload_symbols_to_crashlytics(
-      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
+      binary_path: './scripts/upload-symbols'
     )
     
     # Upload dSYM to iTunesConnect
@@ -164,7 +164,7 @@ platform :ios do
   lane :upload_latest_dsyms do
     download_dsyms(version: "latest")
     upload_symbols_to_crashlytics(
-      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
+      binary_path: './scripts/upload-symbols'
     )
     clean_build_artifacts
   end
@@ -174,7 +174,7 @@ platform :ios do
     download_dsyms
     upload_symbols_to_crashlytics(
       gsp_path: ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'],
-      binary_path: ENV['UPLOAD_SYMBOLS_PATH']
+      binary_path: './scripts/upload-symbols'
     )
     clean_build_artifacts
 
