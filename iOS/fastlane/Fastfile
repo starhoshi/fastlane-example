@@ -90,7 +90,6 @@ platform :ios do
 
     # notify slack
     payload = {"Git Commit" => changelog}
-    payload["Circle Artifacts Url"] = ENV["CIRCLE_BUILD_URL"] + "#artifacts/containers/0" if is_ci?
     payload["Repo"] = ENV["GITHUB_REPOSITORY"] if ENV["GITHUB_REPOSITORY"]
     slack(
       channel: ENV["SLACK_CHANNEL"],
@@ -169,9 +168,7 @@ platform :ios do
     )
     clean_build_artifacts
 
-    payload = {
-      "Circle Build Url" => ENV["CIRCLE_BUILD_URL"]
-    }
+    payload = {}
     payload["Repo"] = ENV["GITHUB_REPOSITORY"] if ENV["GITHUB_REPOSITORY"]
     slack(
       message: "Successfully uploaded dSYMs to :crashlytics:",
@@ -220,9 +217,7 @@ platform :ios do
 
 
   error do |lane, exception|
-    payload = {
-      "Circle Build Url" => ENV["CIRCLE_BUILD_URL"]
-    }
+    payload = {}
     payload["Repo"] = ENV["GITHUB_REPOSITORY"] if ENV["GITHUB_REPOSITORY"]
     slack(
       channel: ENV["SLACK_CHANNEL"],
