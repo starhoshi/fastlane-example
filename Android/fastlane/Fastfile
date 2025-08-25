@@ -19,7 +19,7 @@ platform :android do
   desc "Deploy a new version to the Google Play"
   lane :deploy do
     now = Time.now.to_i
-    sh("fvm flutter build appbundle --release --build-number=#{now}")
+    sh("flutter build appbundle --release --build-number=#{now}")
 
     # 環境変数から設定を読み込んでアップロード
     upload_to_play_store(
