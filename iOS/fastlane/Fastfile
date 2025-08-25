@@ -91,6 +91,7 @@ platform :ios do
     # notify slack
     payload = {"Git Commit" => changelog}
     payload["Circle Artifacts Url"] = ENV["CIRCLE_BUILD_URL"] + "#artifacts/containers/0" if is_ci?
+    payload["Repo"] = ENV["GITHUB_REPOSITORY"] if ENV["GITHUB_REPOSITORY"]
     slack(
       channel: ENV["SLACK_CHANNEL"],
       message: ":crashlytics: Beta App successfully released!",
