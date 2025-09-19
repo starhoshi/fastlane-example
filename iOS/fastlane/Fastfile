@@ -217,6 +217,9 @@ platform :ios do
 
 
   error do |lane, exception|
+    # Reset iOS directory changes on error
+    reset_diff
+
     payload = {}
     payload["Repo"] = ENV["GITHUB_REPOSITORY"] if ENV["GITHUB_REPOSITORY"]
     slack(
