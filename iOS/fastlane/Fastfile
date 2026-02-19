@@ -9,7 +9,7 @@ import_from_git(
 
 private_lane :reset_pbxproj do
   # build_id 更新で差分が出る project.pbxproj のみ復元する
-  sh('git restore --worktree --staged ":(glob)**/project.pbxproj" 2>/dev/null || true')
+  sh('cd "$(git rev-parse --show-toplevel)" && git ls-files | grep "project.pbxproj$" | while read -r f; do git restore --staged --worktree -- "$f"; done; true')
 end
 
 platform :ios do
