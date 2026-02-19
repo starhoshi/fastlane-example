@@ -15,10 +15,3 @@ private_lane :git_tag_diff do
     pretty: '%h %s'
   )
 end
-
-
-desc "Reset diff"
-private_lane :reset_diff do
-  # build_id 更新で差分が出る project.pbxproj のみ復元する
-  # sh('cd $(git rev-parse --show-cdup) && git checkout -- ":(glob)**/project.pbxproj" 2>/dev/null || true')
-end

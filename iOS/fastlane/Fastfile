@@ -7,6 +7,11 @@ import_from_git(
   path: 'Util/Fastfile'
 )
 
+private_lane :reset_pbxproj do
+  # build_id 更新で差分が出る project.pbxproj のみ復元する
+  sh('git restore --worktree --staged ":(glob)**/project.pbxproj" 2>/dev/null || true')
+end
+
 platform :ios do
   changelog = ""
   default_payloads = [:lane, :test_result, :git_branch, :git_author]
@@ -218,7 +223,7 @@ platform :ios do
 
   error do |lane, exception|
     # Reset iOS directory changes on error
-    reset_diff
+    reset_pbxproj
 
     payload = {}
     payload["Repo"] = ENV["GITHUB_REPOSITORY"] if ENV["GITHUB_REPOSITORY"]
@@ -232,7 +237,6 @@ platform :ios do
 
 
   after_all do
-    reset_diff
+    reset_pbxproj
   end
 end
-
