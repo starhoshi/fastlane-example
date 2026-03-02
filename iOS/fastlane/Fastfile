@@ -14,14 +14,16 @@ end
 
 private_lane :next_ios_build_number do |options|
   version = options[:version] || get_version_number
+  base = Time.now.strftime("%Y%m%d0000").to_i
 
   begin
     latest = latest_testflight_build_number(
       api_key: options[:api_key],
       version: version,
-      initial_build_number: 0
+      initial_build_number: base - 1
     )
-    (latest.to_i + 1).to_s
+    latest_i = latest.to_i
+    (latest_i >= base ? latest_i + 1 : base).to_s
   rescue => error
     UI.user_error!("App Store Connect から build 番号取得に失敗したため終了します: #{error.message}")
   end
