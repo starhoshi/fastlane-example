@@ -29,6 +29,20 @@ private_lane :next_ios_build_number do |options|
   end
 end
 
+private_lane :upload_dsyms_to_crashlytics_if_configured do
+  gsp_path = ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'].to_s.strip
+
+  if gsp_path.empty? || !File.exist?(gsp_path)
+    UI.important("GOOGLE_SERVICES_INFO_PLIST_PATH が未設定、空文字、またはファイルが存在しないため Crashlytics への dSYM upload を skip します")
+    next
+  end
+
+  upload_symbols_to_crashlytics(
+    gsp_path: gsp_path,
+    binary_path: './scripts/upload-symbols'
+  )
+end
+
 platform :ios do
   changelog = ""
   default_payloads = [:lane, :test_result, :git_branch, :git_author]
@@ -106,9 +120,7 @@ platform :ios do
     )
 
     # Upload dSYM to crashslytics
-    upload_symbols_to_crashlytics(
-      binary_path: './scripts/upload-symbols'
-    )
+    upload_dsyms_to_crashlytics_if_configured
 
     # notify slack
     payload = {"Git Commit" => changelog}
@@ -155,9 +167,7 @@ platform :ios do
     deliver
 
     # Upload dSYM to crashslytics
-    upload_symbols_to_crashlytics(
-      binary_path: './scripts/upload-symbols'
-    )
+    upload_dsyms_to_crashlytics_if_configured
 
     # Get diff from the last tag
     sh("git tag -d v#{get_version_number} || echo")
@@ -186,16 +196,10 @@ platform :ios do
   desc "Download dSYMs from iTunesConnect and upload to crashylitics"
   lane :refresh_dsyms do
     download_dsyms
-    gsp_path = ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'].to_s.strip
-
-    if gsp_path.empty? || !File.exist?(gsp_path)
-      UI.important("GOOGLE_SERVICES_INFO_PLIST_PATH が未設定、空文字、またはファイルが存在しないため Crashlytics への dSYM upload を skip します")
-    else
-      upload_symbols_to_crashlytics(
-        gsp_path: gsp_path,
-        binary_path: './scripts/upload-symbols'
-      )
-    end
+    upload_symbols_to_crashlytics(
+      gsp_path: ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'],
+      binary_path: './scripts/upload-symbols'
+    )
     clean_build_artifacts
 
     payload = {}
