@@ -85,55 +85,6 @@ platform :ios do
   end
 
 
-  desc "Deploy a new version to the Crashlytics Beta"
-  lane :beta do
-    # Download and install certificate
-    if is_ci?
-      match(type: ENV["BETA_MATCH_TYPE"], force_for_new_devices: true, keychain_name: keychain[:name], keychain_password: keychain[:password])
-    else
-      match(type: ENV["BETA_MATCH_TYPE"], force_for_new_devices: true)
-    end
-
-    # Update build number
-    increment_build_number(build_number: "0.#{Time.now.strftime("%Y%m%d%H%M")}")
-
-    # Change application icon to beta version
-    badge(dark: true)
-
-    # Compile
-    gym(export_method: "development", configuration: "Debug", export_options: { compileBitcode: false })
-
-    # Save ipa and dSYM
-    if is_ci?
-      sh "cp #{lane_context[SharedValues::IPA_OUTPUT_PATH]} $CIRCLE_ARTIFACTS"
-      sh "cp #{lane_context[SharedValues::DSYM_OUTPUT_PATH]} $CIRCLE_ARTIFACTS"
-    end
-
-    # Upload ipa to crashslytics
-    crashlytics(
-      crashlytics_path: "Pods/Crashlytics/iOS/Crashlytics.framework",
-      api_token: ENV['CRASHLYTICS_API_TOKEN'],
-      build_secret: ENV['CRASHLYTICS_BUILD_SECRET'],
-      ipa_path: lane_context[SharedValues::IPA_OUTPUT_PATH],
-      notes: changelog,
-      groups: ENV["CRASHLYTICS_GROUPS"]
-    )
-
-    # Upload dSYM to crashslytics
-    upload_dsyms_to_crashlytics_if_configured
-
-    # notify slack
-    payload = {"Git Commit" => changelog}
-    payload["Repo"] = ENV["GITHUB_REPOSITORY"] if ENV["GITHUB_REPOSITORY"]
-    slack(
-      channel: ENV["SLACK_CHANNEL"],
-      message: ":crashlytics: Beta App successfully released!",
-      payload: payload,
-      default_payloads: default_payloads
-    )
-  end
-
-
   desc "Deploy a new version to the App Store"
   lane :release do
     api_key = app_store_connect_api_key(
@@ -286,17 +237,6 @@ platform :ios do
   end
 
   
-  desc "frameit"
-  lane :screenshots do
-    frameit(path: './fastlane/screenshots/', white: true)
-    Dir.glob('./fastlane/screenshots/**/*.png') do |png|
-      if !png.include?('framed')
-        File.delete(png)
-      end
-    end
-  end
-
-
   error do |lane, exception|
     # Reset iOS directory changes on error
     reset_build
