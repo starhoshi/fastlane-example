@@ -46,30 +46,9 @@ end
 platform :ios do
   changelog = ""
   default_payloads = [:lane, :test_result, :git_branch, :git_author]
-  keychain = {name: "name", password: "password"}
 
   before_all do
-    # ENV['DELIVER_ITMSTRANSPORTER_ADDITIONAL_UPLOAD_PARAMETERS'] = '-t DAV'
-
     changelog = changelog_from_git_commits_hs
-
-    if is_ci?
-   #   sh("rm /Users/distiller/Library/Keychains/#{keychain[:name]}-db || echo")
-      
-      setup_ci(
-        force: true,
-        provider: "travis",
-      )
-
-   #   create_keychain(
-   #     name: keychain[:name],
-   #     password: keychain[:password],
-   #     default_keychain: true,
-   #     unlock: true,
-   #     timeout: 3600,
-   #     lock_when_sleeps: false
-   #   )
-    end
   end
 
 
@@ -93,12 +72,7 @@ platform :ios do
       key_content: ENV['ASC_KEY_CONTENT'],
     )
     
-    # Download and install certificate
-    if is_ci?
-      match(type: "appstore", git_url: ENV["GITHUB_CERTIFICATES_REPO"])
-    else
-      match(type: "appstore")
-    end
+    match(type: "appstore")
 
     # Update build number
     increment_build_number(
@@ -107,12 +81,6 @@ platform :ios do
 
     # Compile
     gym(scheme: ENV["RELEASE_GYM_SCHEME"])
-
-    # Save ipa and dSYM
-    if is_ci?
-      sh "cp #{lane_context[SharedValues::IPA_OUTPUT_PATH]} $CIRCLE_ARTIFACTS"
-      sh "cp #{lane_context[SharedValues::DSYM_OUTPUT_PATH]} $CIRCLE_ARTIFACTS"
-    end
 
     # Upload ipa to iTunes Connect
     deliver
@@ -152,12 +120,7 @@ platform :ios do
       key_content: ENV['ASC_KEY_CONTENT'],
     )
 
-    # Download and install certificate
-    if is_ci?
-      match(type: "appstore", git_url: ENV["GITHUB_CERTIFICATES_REPO"])
-    else
-      match(type: "appstore")
-    end
+    match(type: "appstore")
 
     # Update build number
     increment_build_number(
@@ -166,12 +129,6 @@ platform :ios do
 
     # Compile
     gym(scheme: ENV["RELEASE_GYM_SCHEME"])
-
-    # Save ipa and dSYM
-    if is_ci?
-      sh "cp #{lane_context[SharedValues::IPA_OUTPUT_PATH]} $CIRCLE_ARTIFACTS"
-      sh "cp #{lane_context[SharedValues::DSYM_OUTPUT_PATH]} $CIRCLE_ARTIFACTS"
-    end
 
     # Upload to TestFlight
     upload_to_testflight(api_key: api_key)
