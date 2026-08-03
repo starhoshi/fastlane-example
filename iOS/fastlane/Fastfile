@@ -30,17 +30,27 @@ private_lane :next_ios_build_number do |options|
 end
 
 private_lane :upload_dsyms_to_crashlytics_if_configured do
-  gsp_path = ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'].to_s.strip
+  configured_gsp_path = ENV['GOOGLE_SERVICES_INFO_PLIST_PATH'].to_s.strip
 
-  if gsp_path.empty? || !File.exist?(gsp_path)
-    UI.important("GOOGLE_SERVICES_INFO_PLIST_PATH が未設定、空文字、またはファイルが存在しないため Crashlytics への dSYM upload を skip します")
+  if configured_gsp_path.empty?
+    UI.important("GOOGLE_SERVICES_INFO_PLIST_PATH が未設定のため Crashlytics への dSYM upload を skip します")
     next
   end
 
-  upload_symbols_to_crashlytics(
-    gsp_path: gsp_path,
-    binary_path: './scripts/upload-symbols'
-  )
+  # lane は fastlane/ で実行されるため、各パスをプロジェクトルート基準の絶対パスへ変換する
+  project_root = File.expand_path('..', Dir.pwd)
+  gsp_path = File.expand_path(configured_gsp_path, project_root)
+  binary_path = File.join(project_root, 'scripts', 'upload-symbols')
+  dsym_path = Actions.lane_context[SharedValues::DSYM_OUTPUT_PATH]
+
+  UI.user_error!("GoogleService-Info.plist が見つかりません: #{gsp_path}") unless File.file?(gsp_path)
+  UI.user_error!("upload-symbols が見つからないか実行できません: #{binary_path}") unless File.executable?(binary_path)
+  UI.user_error!("gym が生成した dSYM が見つかりません: #{dsym_path}") if dsym_path.to_s.empty? || !File.exist?(dsym_path)
+
+  UI.message("Crashlytics へ dSYM をアップロードします: #{dsym_path}")
+  upload_succeeded = system(binary_path, '-gsp', gsp_path, '-p', 'ios', dsym_path)
+  UI.user_error!("Crashlytics への dSYM upload に失敗しました") unless upload_succeeded
+  UI.success("Crashlytics への dSYM upload が完了しました")
 end
 
 platform :ios do
@@ -82,11 +92,11 @@ platform :ios do
     # Compile
     gym(scheme: ENV["RELEASE_GYM_SCHEME"])
 
+    # Upload dSYM to Crashlytics before changing App Store Connect state
+    upload_dsyms_to_crashlytics_if_configured
+
     # Upload ipa to iTunes Connect
     deliver
-
-    # Upload dSYM to crashslytics
-    upload_dsyms_to_crashlytics_if_configured
 
     # Get diff from the last tag
     sh("git tag -d v#{get_version_number} || echo")
@@ -130,11 +140,11 @@ platform :ios do
     # Compile
     gym(scheme: ENV["RELEASE_GYM_SCHEME"])
 
+    # Upload dSYM to Crashlytics before changing App Store Connect state
+    upload_dsyms_to_crashlytics_if_configured
+
     # Upload to TestFlight
     upload_to_testflight(api_key: api_key)
-
-    # Upload dSYM to Crashlytics
-    upload_dsyms_to_crashlytics_if_configured
 
     # notify slack
     payload = {"Git Commit" => changelog}
