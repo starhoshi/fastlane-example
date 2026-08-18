@@ -214,7 +214,8 @@ platform :ios do
   end
 
   desc "App Store Connect 上の重複したスクリーンショットを削除して審査に出し直す"
-  desc "release から重複が見つかったときだけ呼ばれる。単体でも実行できる。"
+  desc "release から重複が見つかったときだけ自動で呼ばれる。"
+  desc "Deliverfile が skip_screenshots true のプロジェクトは、スクショを差し替えたときに手で実行する。"
   lane :fix_screenshots do
     api_key = app_store_connect_api_key(
       key_id: ENV['ASC_KEY_ID'],
@@ -226,18 +227,26 @@ platform :ios do
       api_key: api_key,
       skip_binary_upload: true,
       skip_metadata: true,
-      skip_screenshots: true,
       run_precheck_before_submit: false,
       force: true
     }
 
-    # 審査待ちのままだとスクショを消せないので、まず提出を取り下げる
-    deliver(common.merge(reject_if_possible: true, submit_for_review: false))
+    # release がスクショを上げていないなら、ここで上げる。
+    # 上げているなら上げ直さない（アップロードが 2 回に増えるのを避ける）。
+    upload_here = deliver_skip_screenshots?
+
+    # 審査待ちのままだとスクショを差し替えられないので、まず提出を取り下げる
+    deliver(common.merge(
+      skip_screenshots: !upload_here,
+      overwrite_screenshots: upload_here,
+      reject_if_possible: true,
+      submit_for_review: false
+    ))
 
     remove_duplicate_screenshots
 
     # 掃除できたので審査に出し直す
-    deliver(common.merge(reject_if_possible: false, submit_for_review: true))
+    deliver(common.merge(skip_screenshots: true, reject_if_possible: false, submit_for_review: true))
   end
 
   desc "Upload a new build to TestFlight only"

@@ -61,12 +61,15 @@ $ bundle exec fastlane release
 `release` は `Deliverfile` の `skip_screenshots` が `false`（＝この実行でスクショを
 上げた）ときだけ重複を確認し、**見つかったときだけ** `fix_screenshots` を呼ぶ。
 
+`skip_screenshots true` にして毎回は上げない運用のプロジェクトは、スクショを
+差し替えたときだけ `fix_screenshots` を手で実行する。この lane は `release` が
+上げていなければ自分で上げるので、どちらの運用でも 1 コマンドで完結する。
+
 `get_edit_app_store_version` のフィルタには `WAITING_FOR_REVIEW` が含まれるので、
 審査に出した後でも重複の有無は読める。そのため重複が無ければ self reject せず、
 審査の順番待ちをそのまま保てる。
 
-重複していたときだけ、提出の取り下げ → 重複の削除 → 審査へ再提出まで自動で走る。
-手動で流したいときは単体でも呼べる。
+提出の取り下げ → （必要なら上げ直し）→ 重複の削除 → 審査へ再提出 まで走る。
 
 ```
 $ bundle exec fastlane fix_screenshots
