@@ -53,6 +53,15 @@ private_lane :upload_dsyms_to_crashlytics_if_configured do
   UI.success("Crashlytics への dSYM upload が完了しました")
 end
 
+# App Store Connect 上のスクリーンショットを重複ごとに 1 枚へ整理する。
+#
+# deliver はアップロード直後の検証で「まだ App Store Connect 側に見えない」
+# スクショを未アップロード扱いにして再送するため、実際には上がっていたものが
+# 二重に並ぶことがある。発生するのは新しいスクショを上げたときだけなので、
+# 上げていない実行では触らない。
+#
+# 判定に source_file_checksum は使えない。処理が終わるまで nil のことがあり、
+# 同じ画像でもキーが割れてしまうため、ファイル名で見る。
 platform :ios do
   changelog = ""
   default_payloads = [:lane, :test_result, :git_branch, :git_author]
@@ -73,6 +82,78 @@ platform :ios do
     danger
   end
 
+
+  def screenshot_app_identifier
+    CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+  end
+
+  # Deliverfile の skip_screenshots を読む。deliver アクション自身と同じ手順で
+  # 組み立てるので、実際に deliver が使う値と一致する。
+  # 読めなかったときは「上げていない」側に倒す。判定できないだけで審査の提出を
+  # 取り下げてしまうより、何もしない方が安全なため。
+  def deliver_skip_screenshots?
+    require 'deliver'
+    config = FastlaneCore::Configuration.create(Deliver::Options.available_options, {})
+    config.load_configuration_file("Deliverfile")
+    config[:skip_screenshots]
+  rescue => error
+    UI.important("Deliverfile の skip_screenshots を判定できませんでした (#{error.message})。スクショの重複チェックを skip します")
+    true
+  end
+
+  # App Store Connect 上で重複しているスクリーンショットを列挙する。
+  #
+  # deliver はアップロード直後の検証で「まだ App Store Connect 側に見えない」
+  # スクショを未アップロード扱いにして再送するため、実際には上がっていたものが
+  # 二重に並ぶことがある。発生するのは新しいスクショを上げたときだけ。
+  #
+  # 判定に source_file_checksum は使えない。処理が終わるまで nil のことがあり、
+  # 同じ画像でもキーが割れてしまうため、ファイル名で見る。
+  def each_duplicate_screenshot
+    app_identifier = screenshot_app_identifier
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    UI.user_error!("App が見つかりません: #{app_identifier}") unless app
+
+    # get_edit_app_store_version のフィルタには WAITING_FOR_REVIEW も含まれるので、
+    # 審査に出した後でも読める。つまり self reject する前に重複の有無を判定できる。
+    version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+    UI.user_error!("編集中のバージョンが見つかりません") unless version
+
+    version.get_app_store_version_localizations.each do |localization|
+      localization.get_app_screenshot_sets.each do |set|
+        seen = {}
+        (set.app_screenshots || []).each do |screenshot|
+          key = screenshot.file_name
+          if seen[key]
+            yield(localization, set, screenshot)
+          else
+            seen[key] = true
+          end
+        end
+      end
+    end
+  end
+
+  def duplicate_screenshots?
+    each_duplicate_screenshot { return true }
+    false
+  end
+
+  def remove_duplicate_screenshots
+    removed = 0
+    each_duplicate_screenshot do |localization, set, screenshot|
+      UI.important("重複を削除: #{localization.locale} #{set.screenshot_display_type} #{screenshot.file_name}")
+      screenshot.delete!
+      removed += 1
+    end
+
+    if removed.zero?
+      UI.success("重複したスクリーンショットはありませんでした")
+    else
+      UI.success("重複したスクリーンショットを #{removed} 件削除しました")
+    end
+    removed
+  end
 
   desc "Deploy a new version to the App Store"
   lane :release do
@@ -98,6 +179,16 @@ platform :ios do
     # Upload ipa to iTunes Connect
     deliver
 
+    # スクショを上げた実行でだけ重複が生まれる。上げていないなら審査状態に触らない。
+    # 重複があるときだけ self reject するので、無駄に審査の順番待ちを捨てずに済む。
+    if !deliver_skip_screenshots?
+      if duplicate_screenshots?
+        fix_screenshots
+      else
+        UI.success("重複したスクリーンショットはありませんでした")
+      end
+    end
+
     # Get diff from the last tag
     sh("git tag -d v#{get_version_number} || echo")
     diff = git_tag_diff
@@ -120,6 +211,33 @@ platform :ios do
       payload: payload,
       default_payloads: default_payloads
     )
+  end
+
+  desc "App Store Connect 上の重複したスクリーンショットを削除して審査に出し直す"
+  desc "release から重複が見つかったときだけ呼ばれる。単体でも実行できる。"
+  lane :fix_screenshots do
+    api_key = app_store_connect_api_key(
+      key_id: ENV['ASC_KEY_ID'],
+      issuer_id: ENV['ASC_ISSUER_ID'],
+      key_content: ENV['ASC_KEY_CONTENT']
+    )
+
+    common = {
+      api_key: api_key,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      run_precheck_before_submit: false,
+      force: true
+    }
+
+    # 審査待ちのままだとスクショを消せないので、まず提出を取り下げる
+    deliver(common.merge(reject_if_possible: true, submit_for_review: false))
+
+    remove_duplicate_screenshots
+
+    # 掃除できたので審査に出し直す
+    deliver(common.merge(reject_if_possible: false, submit_for_review: true))
   end
 
   desc "Upload a new build to TestFlight only"

@@ -53,6 +53,25 @@ $ bundle exec fastlane beta
 $ bundle exec fastlane release
 ```
 
+### スクリーンショットの重複について
+
+`deliver` はアップロード直後の検証で「まだ App Store Connect 側に見えない」
+スクショを未アップロード扱いにして再送するため、同じ画像が二重に並ぶことがある。
+
+`release` は `Deliverfile` の `skip_screenshots` が `false`（＝この実行でスクショを
+上げた）ときだけ重複を確認し、**見つかったときだけ** `fix_screenshots` を呼ぶ。
+
+`get_edit_app_store_version` のフィルタには `WAITING_FOR_REVIEW` が含まれるので、
+審査に出した後でも重複の有無は読める。そのため重複が無ければ self reject せず、
+審査の順番待ちをそのまま保てる。
+
+重複していたときだけ、提出の取り下げ → 重複の削除 → 審査へ再提出まで自動で走る。
+手動で流したいときは単体でも呼べる。
+
+```
+$ bundle exec fastlane fix_screenshots
+```
+
 ## Create release branch
 
 ```
