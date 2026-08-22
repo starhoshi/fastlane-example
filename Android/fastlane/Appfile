@@ -1,3 +1,10 @@
-json_key_file "app/key.json"
-package_name "jp.classi.classi"
-
+# これは雛形。**各アプリの android/fastlane/Appfile が使われる**（ここは読まれない）。
+#
+# アプリ側には package_name だけ書く。
+#
+#   package_name("com.example.app")
+#
+# Play の認証情報はここに書かない。
+# 環境変数 SUPPLY_JSON_KEY_DATA に JSON の中身を入れて渡す（sops exec-env）。
+# 平文の鍵ファイルをディスクに置かないため。
+package_name "com.example.app"

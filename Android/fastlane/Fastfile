@@ -18,8 +18,22 @@ default_platform(:android)
 platform :android do
   desc "Deploy a new version to the Google Play"
   lane :deploy do
-    now = Time.now.to_i
-    sh("flutter build appbundle --release --build-number=#{now}")
+    # ビルドコマンドは差し替えられる。
+    #
+    # 既定は Flutter なので、**環境変数を設定しなければ以前とまったく同じ挙動**。
+    # Flutter のアプリ側は何も変えなくてよい。
+    #
+    #   ANDROID_BUILD_COMMAND=""                        → ビルドせず、出来ている aab を上げるだけ
+    #   ANDROID_BUILD_COMMAND="./gradlew bundleRelease"  → 素の Android / Expo など
+    #
+    # build number に epoch 秒を使うのは、Play が「前より大きい versionCode」を
+    # 要求するから。手で採番すると必ずどこかで重複させる。
+    # 外から与えたいときは ANDROID_VERSION_CODE を設定する。
+    version_code = ENV['ANDROID_VERSION_CODE'] || Time.now.to_i.to_s
+    build_command = ENV.fetch('ANDROID_BUILD_COMMAND') do
+      "flutter build appbundle --release --build-number=#{version_code}"
+    end
+    sh(build_command) unless build_command.to_s.strip.empty?
 
     # 環境変数から設定を読み込んでアップロード
     upload_to_play_store(
