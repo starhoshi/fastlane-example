@@ -16,7 +16,15 @@
 default_platform(:android)
 
 platform :android do
-  desc "Deploy a new version to the Google Play"
+  desc "Google Play に新しいビルドを提出する"
+  desc "バージョン名は変更しない。versionCode だけを採番する。"
+  desc "versionCode は epoch 秒。ANDROID_VERSION_CODE を設定するとその値を使う。"
+  desc "ANDROID_BUILD_COMMAND でビルドする。既定は flutter build appbundle --release。"
+  desc "空文字を渡すとビルドせず、既にある aab をアップロードする。"
+  desc "./gradlew bundleRelease などに差し替えれば素の Android / Expo でも動く。"
+  desc "upload_to_play_store で aab とメタデータをアップロードする。"
+  desc "任意: SUPPLY_TRACK（既定 production）/ SUPPLY_AAB / SUPPLY_RELEASE_STATUS（既定 draft）"
+  desc "任意: SUPPLY_SKIP_UPLOAD_METADATA / _CHANGELOGS / _IMAGES / _SCREENSHOTS（'true' で skip）"
   lane :deploy do
     # ビルドコマンドは差し替えられる。
     #
