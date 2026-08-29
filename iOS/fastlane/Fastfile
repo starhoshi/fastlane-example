@@ -139,11 +139,37 @@ platform :ios do
     false
   end
 
+  # 審査提出の取り下げは API が 200 を返したあとも Apple 側で少し遅れて効く。
+  # 効く前に消しにいくと "Can't Delete Screenshot After Submit for review" で
+  # 弾かれるので、消せるようになるまで待ってから諦める。
+  # (実測で取り下げの 2 秒後は間に合わず、1 分後には通っていた)
+  SCREENSHOT_DELETE_ATTEMPTS = 8
+  SCREENSHOT_DELETE_INTERVAL = 10
+
+  def delete_screenshot_with_retry(screenshot)
+    attempt = 0
+    begin
+      attempt += 1
+      screenshot.delete!
+    rescue Spaceship::UnexpectedResponse => error
+      # 取り下げ待ち以外 (権限、既に消えている等) は素直に投げる
+      raise unless error.message.include?("Can't Delete Screenshot")
+      raise if attempt >= SCREENSHOT_DELETE_ATTEMPTS
+
+      UI.important(
+        "審査提出の取り下げがまだ効いていません。#{SCREENSHOT_DELETE_INTERVAL} 秒待って再試行します " \
+        "(#{attempt}/#{SCREENSHOT_DELETE_ATTEMPTS - 1})"
+      )
+      sleep(SCREENSHOT_DELETE_INTERVAL)
+      retry
+    end
+  end
+
   def remove_duplicate_screenshots
     removed = 0
     each_duplicate_screenshot do |localization, set, screenshot|
       UI.important("重複を削除: #{localization.locale} #{set.screenshot_display_type} #{screenshot.file_name}")
-      screenshot.delete!
+      delete_screenshot_with_retry(screenshot)
       removed += 1
     end
 
@@ -235,10 +261,14 @@ platform :ios do
     # 審査待ちのままだとスクショを消せないので、まず提出を取り下げる
     deliver(common.merge(reject_if_possible: true, submit_for_review: false))
 
-    remove_duplicate_screenshots
-
-    # 掃除できたので審査に出し直す
-    deliver(common.merge(reject_if_possible: false, submit_for_review: true))
+    # 掃除に失敗しても審査には必ず戻す。ここで抜けると「取り下げたまま
+    # 出し直していない」状態で止まり、誰も気づかないまま審査に並ばない。
+    # 重複が残るのは見た目の問題だが、並んでいないのはリリースが進まない
+    begin
+      remove_duplicate_screenshots
+    ensure
+      deliver(common.merge(reject_if_possible: false, submit_for_review: true))
+    end
   end
 
   desc "Upload a new build to TestFlight only"
