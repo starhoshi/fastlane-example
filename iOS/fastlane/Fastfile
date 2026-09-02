@@ -94,7 +94,11 @@ platform :ios do
   def deliver_skip_screenshots?
     require 'deliver'
     config = FastlaneCore::Configuration.create(Deliver::Options.available_options, {})
-    config.load_configuration_file("Deliverfile")
+    # レーンの中は cwd が fastlane/ だが、アクションは runner が Dir.chdir("..") して
+    # から呼ぶので、deliver 本体はリポジトリ直下で Deliverfile を読む。ここも合わせる。
+    # 揃えないと、Deliverfile に書かれた相対パス (app_rating_config_path など) だけが
+    # 解決に失敗して、skip_screenshots の判定ごと rescue に落ちる。
+    Dir.chdir("..") { config.load_configuration_file("Deliverfile") }
     config[:skip_screenshots]
   rescue => error
     UI.important("Deliverfile の skip_screenshots を判定できませんでした (#{error.message})。スクショの重複チェックを skip します")
