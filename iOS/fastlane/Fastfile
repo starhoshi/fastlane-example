@@ -53,6 +53,35 @@ private_lane :upload_dsyms_to_crashlytics_if_configured do
   UI.success("Crashlytics への dSYM upload が完了しました")
 end
 
+# TestFlight の「テスト項目」(What to Test) に文言を入れる。
+#
+# deliver が触るのは App Store の「新機能」だけで、TestFlight の欄は
+# betaBuildLocalizations という別のリソースなので、deliver では埋まらない。
+# distribute_only は ipa を上げずに既存ビルドのメタ情報だけ更新するモードで、
+# skip_submission を付ければ外部テスターへの配布も通知も起きない
+# (pilot の distribute は update_beta_app_meta を呼んだ後に return する)。
+#
+# release lane 用。testflight lane は upload_to_testflight に changelog を
+# 直接渡せるので、こちらを通す必要はない。
+private_lane :set_testflight_changelog do |options|
+  changelog = options[:changelog].to_s
+
+  if changelog.strip.empty?
+    UI.important("TestFlight のテスト項目に入れる文言が空のため skip します")
+    next
+  end
+
+  upload_to_testflight(
+    api_key: options[:api_key],
+    distribute_only: true,
+    app_version: get_version_number,
+    build_number: get_build_number,
+    changelog: changelog,
+    # 文言を書くだけ。外部テスターへの配布はしない
+    skip_submission: true
+  )
+end
+
 # App Store Connect 上のスクリーンショットを重複ごとに 1 枚へ整理する。
 #
 # deliver はアップロード直後の検証で「まだ App Store Connect 側に見えない」
@@ -82,6 +111,35 @@ platform :ios do
     danger
   end
 
+
+  # TestFlight のテスト項目に載せる文言を組み立てる。
+  #
+  # release lane は「App Store のリリースノート + コミットログ」、
+  # testflight lane はコミットログだけ。テスターが知りたいのは
+  # 「今回何が変わったか」なので、両方あるときは続けて並べる。
+  def testflight_changelog(commit_log, with_release_notes: false)
+    parts = []
+    parts << app_store_release_notes if with_release_notes
+    parts << commit_log
+    parts.compact.map(&:strip).reject(&:empty?).join("\n\n")
+  end
+
+  # deliver が読むのと同じ metadata/<locale>/release_notes.txt を読む。
+  # lane の中は cwd が fastlane/ なので、そこからの相対で探す。
+  #
+  # 読めなくてもテスト項目がコミットログだけになるだけなので、
+  # ここでは落とさず nil を返す。リリースを止める理由にはならない。
+  def app_store_release_notes
+    locales = [ENV["TESTFLIGHT_NOTES_LOCALE"], "ja", "en-US"].compact.reject(&:empty?)
+    path = locales.map { |locale| "metadata/#{locale}/release_notes.txt" }.find { |candidate| File.file?(candidate) }
+    path ||= Dir.glob("metadata/*/release_notes.txt").sort.first
+    return nil unless path && File.file?(path)
+
+    File.read(path)
+  rescue => error
+    UI.important("リリースノートを読めませんでした (#{error.message})。TestFlight のテスト項目はコミットログだけにします")
+    nil
+  end
 
   def screenshot_app_identifier
     CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
@@ -219,6 +277,24 @@ platform :ios do
     # Upload ipa to iTunes Connect
     deliver
 
+    # Get diff from the last tag
+    # タグの message と TestFlight のテスト項目で同じものを使うので、先に取っておく。
+    # この実行で打つタグがローカルに残っていると last_git_tag がそれを指して
+    # 差分が空になるため、消してから取る。
+    sh("git tag -d v#{get_version_number} || echo")
+    diff = git_tag_diff
+
+    # TestFlight のテスト項目を埋める。deliver は App Store の「新機能」しか
+    # 書かないので、ここでビルドのメタ情報だけ後から更新する。
+    # deliver がビルドの処理完了まで待った後なので、対象のビルドは必ず存在する。
+    #
+    # 最新 1 コミットではなく前のタグからの差分を載せる。release のいちばん新しい
+    # コミットはたいていバージョンを上げただけのもので、中身が分からないため。
+    set_testflight_changelog(
+      api_key: api_key,
+      changelog: testflight_changelog(diff, with_release_notes: true)
+    )
+
     # スクショを上げた実行でだけ重複が生まれる。上げていないなら審査状態に触らない。
     # 重複があるときだけ self reject するので、無駄に審査の順番待ちを捨てずに済む。
     if !deliver_skip_screenshots?
@@ -228,10 +304,6 @@ platform :ios do
         UI.success("重複したスクリーンショットはありませんでした")
       end
     end
-
-    # Get diff from the last tag
-    sh("git tag -d v#{get_version_number} || echo")
-    diff = git_tag_diff
 
     # Create git tag
     # Force pushing because it may create the same tag more than once.
@@ -313,7 +385,8 @@ platform :ios do
     upload_dsyms_to_crashlytics_if_configured
 
     # Upload to TestFlight
-    upload_to_testflight(api_key: api_key)
+    # changelog がそのままテスト項目 (What to Test) になる
+    upload_to_testflight(api_key: api_key, changelog: testflight_changelog(changelog))
 
     # notify slack
     payload = {"Git Commit" => changelog}
