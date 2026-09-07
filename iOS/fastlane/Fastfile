@@ -61,8 +61,7 @@ end
 # skip_submission を付ければ外部テスターへの配布も通知も起きない
 # (pilot の distribute は update_beta_app_meta を呼んだ後に return する)。
 #
-# release lane 用。testflight lane は upload_to_testflight に changelog を
-# 直接渡せるので、こちらを通す必要はない。
+# release / testflight どちらも、ビルドを上げ終わったあとにこれを呼ぶ。
 private_lane :set_testflight_changelog do |options|
   changelog = options[:changelog].to_s
 
@@ -71,15 +70,45 @@ private_lane :set_testflight_changelog do |options|
     next
   end
 
-  upload_to_testflight(
-    api_key: options[:api_key],
-    distribute_only: true,
-    app_version: get_version_number,
-    build_number: get_build_number,
-    changelog: changelog,
-    # 文言を書くだけ。外部テスターへの配布はしない
-    skip_submission: true
-  )
+  begin
+    upload_to_testflight(
+      api_key: options[:api_key],
+      distribute_only: true,
+      app_version: get_version_number,
+      build_number: get_build_number,
+      # **changelog オプションは使わない。**
+      # pilot は既にあるロケールを更新するだけで、ビルドにロケールが 1 つも
+      # 無いときは何も書かずに「Successfully set the changelog for build」と
+      # 出して終わる (build_manager.rb の update_localized_build_review が
+      # 既存ロケールの一覧をループするため、空だとループが回らない)。
+      # ロケールを明示すると post して作ってくれる
+      localized_build_info: { testflight_locale => { whats_new: changelog } },
+      # 文言を書くだけ。外部テスターへの配布はしない
+      skip_submission: true
+    )
+  rescue => error
+    # ここはテスト項目を埋めるだけの後始末。バイナリのアップロードも審査提出も
+    # 済んでいるので、失敗しても後続 (タグ・Slack 通知) は続ける
+    UI.important("TestFlight のテスト項目を書けませんでした: #{error.message}")
+  end
+end
+
+# テスト項目を書くロケール。App Store Connect の primary locale に合わせる。
+# TESTFLIGHT_NOTES_LOCALE で明示もできる。
+private_lane :testflight_locale do
+  configured = ENV["TESTFLIGHT_NOTES_LOCALE"].to_s.strip
+
+  if configured.empty?
+    begin
+      app_identifier = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+      Spaceship::ConnectAPI::App.find(app_identifier)&.primary_locale || "en-US"
+    rescue => error
+      UI.important("primary locale を取得できませんでした (#{error.message})。en-US に書きます")
+      "en-US"
+    end
+  else
+    configured
+  end
 end
 
 # App Store Connect 上のスクリーンショットを重複ごとに 1 枚へ整理する。
@@ -385,8 +414,14 @@ platform :ios do
     upload_dsyms_to_crashlytics_if_configured
 
     # Upload to TestFlight
-    # changelog がそのままテスト項目 (What to Test) になる
-    upload_to_testflight(api_key: api_key, changelog: testflight_changelog(changelog))
+    upload_to_testflight(api_key: api_key)
+
+    # テスト項目 (What to Test)。release と違ってリリースノートは載せず、
+    # 直前のコミットだけにする (バージョンを上げない、開発中のビルドなので)
+    set_testflight_changelog(
+      api_key: api_key,
+      changelog: testflight_changelog(changelog)
+    )
 
     # notify slack
     payload = {"Git Commit" => changelog}
